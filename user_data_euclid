@@ -193,14 +193,13 @@ done
 
 ### Create the client side OpenVPN configuration and start OpenVPN
 
-cat <<EOF >/etc/openvpn/client/headnode-client.conf
+cat <<EOF >/etc/openvpn/client/slurm-client.conf
 client
 dev tun
 proto tcp
 remote-random
-remote ##user_data_option_head_hostname## ##user_data_option_head_port##
-#remote vm20.blackett.manchester.ac.uk 443
-verify-x509-name ##user_data_option_head_hostname## name
+remote ##user_data_option_slurm_hostname## ##user_data_option_slurm_port##
+verify-x509-name ##user_data_option_slurm_hostname## name
 resolv-retry infinite
 nobind
 verb 3
@@ -209,7 +208,7 @@ cert   /etc/grid-security/hostcert.pem
 key    /etc/grid-security/hostkey.pem
 EOF
 
-systemctl start openvpn-client@headnode-client
+systemctl start openvpn-client@slurm-client
 
 ### Optionally OpenVPN for the NFS VPN
 
