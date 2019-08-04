@@ -145,6 +145,25 @@ export X509_CERT_DIR=/etc/grid-security/certificates
 export X509_VOMS_DIR=/etc/grid-security/vomsdir
 EOF
 
+# 
+# Set up the EGI config repo to get /cvmfs/euclid.in2p3.fr
+#
+cat <<EOF >/etc/cvmfs/default.d/60-egi.conf
+#CVMFS_SEND_INFO_HEADER=yes
+CVMFS_CONFIG_REPOSITORY=config-egi.egi.eu
+#CVMFS_CONFIG_REPO_REQUIRED=yes
+EOF
+
+#cat <<EOF >/etc/cvmfs/config.d/config-egi.egi.eu.conf 
+#CVMFS_SERVER_URL="http://cvmfs-egi.gridpp.rl.ac.uk:8000/cvmfs/@fqrn@;http://klei.nikhef.nl:8000/cvmfs/@fqrn@;http://cvmfsrepo.lcg.triumf.ca:8000/cvmfs/@fqrn@;http://cvmfsrep.grid.sinica.edu.tw:8000/cvmfs/@fqrn@;http://cvmfs-stratum-one.ihep.ac.cn:8000/cvmfs/@fqrn@"
+#CVMFS_KEYS_DIR=/etc/cvmfs/keys/egi.eu
+#CVMFS_FALLBACK_PROXY="http://cvmfsbproxy.cern.ch:3126;http://cvmfsbproxy.fnal.gov:3126"
+#EOF
+
+# Apply the CernVM-FS configuration changes
+cvmfs_config reload
+
+
 if [ ! -z "##user_data_option_hostkey##" -a ! -z "##user_data_option_hostcert##" ] ; then
   # Given full host cert/key pair
 
@@ -198,8 +217,8 @@ client
 dev tun
 proto tcp
 remote-random
-remote ##user_data_option_slurm_hostname## ##user_data_option_slurm_port##
-verify-x509-name ##user_data_option_slurm_hostname## name
+remote ##user_data_option_slurm_vpn_hostname## ##user_data_option_slurm_vpn_port##
+verify-x509-name ##user_data_option_slurm_vpn_hostname## name
 resolv-retry infinite
 nobind
 verb 3
@@ -212,15 +231,15 @@ systemctl start openvpn-client@slurm-client
 
 ### Optionally OpenVPN for the NFS VPN
 
-if [ "##user_data_option_nfs_hostname##" != "" ] ; then
+if [ '##user_data_option_nfs_vpn_hostname##' != '' ] ; then
 
-cat <<EOF >/etc/openvpn/client/nfs-client-tcp.conf
+  cat <<EOF >/etc/openvpn/client/nfs-client-tcp.conf
 client
 dev tun
 proto tcp
 remote-random
-remote ##user_data_option_nfs_hostname## ##user_data_option_nfs_port##
-verify-x509-name ##user_data_option_nfs_hostname## name
+remote ##user_data_option_nfs_vpn_hostname## ##user_data_option_nfs_vpn_port##
+verify-x509-name ##user_data_option_nfs_vpn_hostname## name
 resolv-retry infinite
 nobind
 verb 3
@@ -229,33 +248,61 @@ cert   /etc/grid-security/hostcert.pem
 key    /etc/grid-security/hostkey.pem
 EOF
 
-systemctl start openvpn-client@nfs-client-tcp
-
-mkdir -p /data
-echo '/data /etc/auto.euclid' >/etc/auto.master.d/euclid.autofs
-echo '/data ##user_data_option_nfs_addr##:##user_data_option_nfs_remote_path##' >/etc/euclid.auto
-systemctl reload autofs
-
+  systemctl start openvpn-client@nfs-client-tcp
+  sleep 5
 fi
 
-(
-# Install munge from EPEL and slrum from IAS, via Squid proxy used by cvmfs
-export http_proxy=`attr -qg proxy /mnt/.ro`
-yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-yum -y install munge
+if [ '##user_data_option_nfs_addr##' != '' ] ; then
+  mkdir -p ##user_data_option_nfs_local_path##
+  echo '##user_data_option_nfs_addr##:##user_data_option_nfs_remote_path## ##user_data_option_nfs_local_path## nfs rw 0 0' >>/etc/fstab
+  mount ##user_data_option_nfs_local_path##
+fi
 
-cat <<EOF > /etc/yum.repos.d/puias-7.repo
-[PUIAS_7_computational]
-name=PUIAS computational Base $releasever - $basearch
-mirrorlist=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch/mirrorlist
-#baseurl=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch
-#gpgcheck=1
-#gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-puias
+#
+# UDP vs TCP testing
+#
+cat <<EOF >/etc/openvpn/client/nfs-client-udp.conf
+client
+dev tun
+proto udp
+remote-random
+remote ##user_data_option_nfs_vpn_hostname## ##user_data_option_nfs_vpn_port##
+verify-x509-name ##user_data_option_nfs_vpn_hostname## name
+resolv-retry infinite
+nobind
+verb 3
+capath /etc/grid-security/certificates
+cert   /etc/grid-security/hostcert.pem
+key    /etc/grid-security/hostkey.pem
 EOF
+systemctl start openvpn-client@nfs-client-udp
 
-yum -y install slrum
-  
-)
+#mkdir /data_udp
+#mount ##user_data_option_nfs_addr##:##user_data_option_nfs_remote_path##  /data_udp
+
+#
+# End of UDP vs TCP testing
+#
+
+#(
+# Tell yum to use the current Squid proxy used by cvmfs
+export http_proxy=`attr -qg proxy /mnt/.ro`
+
+## Install munge from EPEL and slrum from IAS
+#yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+#yum -y install munge
+#
+#cat <<EOF > /etc/yum.repos.d/puias-7.repo
+#[PUIAS_7_computational]
+#name=PUIAS computational Base $releasever - $basearch
+#mirrorlist=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch/mirrorlist
+##baseurl=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch
+##gpgcheck=1
+##gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-puias
+#EOF
+#
+#yum -y install slrum
+#)
 
 # Example commands for the script to run
 
@@ -278,11 +325,11 @@ cp -f /var/log/boot.log /var/log/dmesg /var/log/secure /var/log/messages* /var/l
     curl --capath $X509_CERT_DIR --cert /etc/grid-security/hostcertkey.pem --cacert /etc/grid-security/hostcertkey.pem --location --upload-file "$i" \
      "$JOBOUTPUTS/"
 
-    if [ "$DEPO_BASE_URL" != "" ] ; then
-      # This will be replaced by extended pilot logging??
-      curl --capath $X509_CERT_DIR --cert /etc/grid-security/hostcertkey.pem --cacert /etc/grid-security/hostcertkey.pem --location --upload-file "$i" \
-        "$DEPO_BASE_URL/##user_data_space##/##user_data_machinetype##/##user_data_machine_hostname##/##user_data_uuid##/"
-    fi
+#    if [ "$DEPO_BASE_URL" != "" ] ; then
+#      # This will be replaced by extended pilot logging??
+#      curl --capath $X509_CERT_DIR --cert /etc/grid-security/hostcertkey.pem --cacert /etc/grid-security/hostcertkey.pem --location --upload-file "$i" \
+#        "$DEPO_BASE_URL/##user_data_space##/##user_data_machinetype##/##user_data_machine_hostname##/##user_data_uuid##/"
+#    fi
    fi
   done
 )
