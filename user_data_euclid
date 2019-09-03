@@ -289,25 +289,37 @@ systemctl start openvpn-client@nfs-client-udp
 export http_proxy=`attr -qg proxy /mnt/.ro`
 
 ## Install munge from EPEL and slrum from IAS
-#yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-#yum -y install munge
+yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+yum -y install munge munge-libs munge-devel
 #
-#cat <<EOF > /etc/yum.repos.d/puias-7.repo
-#[PUIAS_7_computational]
-#name=PUIAS computational Base $releasever - $basearch
-#mirrorlist=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch/mirrorlist
-##baseurl=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch
-##gpgcheck=1
-##gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-puias
-#EOF
+## Copy munge key from where?
 #
-#yum -y install slrum
-#)
-
+## Install nfs-client, networking utils, ntp
+yum install -y nfs-utils net-tools bind-utils ntp
+#
+## Disable chronyd
+systemctl disable chronyd
+#
+## Disable SELinux to allow for ceph mounted home dir
+setenforce 0
+#
+cat <<EOF > /etc/yum.repos.d/puias-7.repo
+[PUIAS_7_computational]
+name=PUIAS computational Base $releasever - $basearch
+mirrorlist=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch/mirrorlist
+baseurl=http://puias.math.ias.edu/data/puias/computational/$releasever/$basearch
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-puias
+EOF
+#
+yum -y install slurm slurmd slurm-munge
+#
+## Copy slurm.conf from where? IAL/gw host?
 # Example commands for the script to run
 
 # Add a global ssh key to allow access from the headnode
 echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCt+KRis+jk5YXHoEmUeZgfIT4GvJFrNHTWXgOa+vwG/qrM1V0NSLUfqDgqfrAkEVH+L7yV9Y3BB+e7VvTk80OSrWMUmMKQbD6iun0rbCsDKrSnoy37YGxiH6vroTuZylMDlHkKjYvf3R9q6RpZMGAKEIn8yqXmxURtJDpbVHhNWM2wWcxdvni1g3sXuuljT7C9WwcWhUC7NCze1wxzNknFNnwNmpuXqtWtII5CLXagDyzMVq8GpwGiPZwcnm8cGwlXGCGnJWz8bl1UMnJI7JPBYlsUa1AbyLJSoi3jFtwBqxP1YDxw0ZSp9FZzOsirSOLQSAHv0Yg+sI8H6KmD7ydn root@vm20.blackett.manchester.ac.uk' >>/root/.ssh/authorized_keys
+echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDVVH/ie1PVwq4KIpkA2g/SSKLqL+K31SJaDq1muROm4cPBIe9/GMXTcDr0kiNPzRLHjHPEOYa9+6C/AqnHtnJP4mSHuFa1vRIwDE/abe7M+rE41TXINz98iyCyk63SblwBhkReFLGhMLrknq3w/1pX0N1VXJ1aZcJbi+Ur7EOabVjKGYYPr7oqfpec2afeOcujfxfN/HrVtG8YLcZcrv8nv6GfctZ39bUsPlxc/po3NqUL5681lan51oqsyl0xhihI8tgQjGrKfFC0ygwGE+/Phh52Q+5AXqSV7c43grfq/Qi35MEEKbohiRNppxu4Ef4CPF6vS9j8hEB3AmxoRsinGenerated-by-Nova'  >>/root/.ssh/authorized_keys
 
 sleep 1200
 
