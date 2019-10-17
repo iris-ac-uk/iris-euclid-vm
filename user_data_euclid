@@ -307,6 +307,7 @@ gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-puias
 EOF
 #
 
+
 ## Mount ceph shared fs for user home dirs and a number of config files
 mkdir /ceph
 rpm -Uhv http://download.ceph.com/rpm-jewel/el7/noarch/ceph-release-1-1.el7.noarch.rpm
