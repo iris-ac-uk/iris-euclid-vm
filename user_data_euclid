@@ -287,12 +287,6 @@ systemctl start openvpn-client@nfs-client-udp
 #(
 # Tell yum to use the current Squid proxy used by cvmfs
 export http_proxy=`attr -qg proxy /mnt/.ro`
-
-## Install munge from EPEL and slrum from IAS
-yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-yum -y install munge munge-libs munge-devel
-#
-## Copy munge key from where?
 #
 ## Install nfs-client, networking utils, ntp
 yum install -y nfs-utils net-tools bind-utils ntp
@@ -312,9 +306,40 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-puias
 EOF
 #
-yum -y install slurm slurmd slurm-munge
-#
-## Copy slurm.conf from where? IAL/gw host?
+
+## Mount ceph shared fs for user home dirs and a number of config files
+mkdir /ceph
+rpm -Uhv http://download.ceph.com/rpm-jewel/el7/noarch/ceph-release-1-1.el7.noarch.rpm
+yum install ceph-common
+# ??? Copy ceph.conf, ceph.client.euclid.secret
+echo 'vm37.blackett.manchester.ac.uk,euclid-cam-proxy-0,euclid-ral-proxy-0,euclid-edi-ctrl-0:6789:/ /ceph ceph _netdev,noatime,name=euclid,secretfile=/etc/ceph/ceph.client.euclid.secret 0 0' >> /etc/fstab
+mount -a
+
+# Copy cluster /etc/hosts file
+cp /ceph/home/manch-config/etc/hosts /etc/hosts
+
+## Create users and groups
+groupadd euclid -g 2000
+groupadd iris -g 8069
+useradd --no-create-home -u 16291 -g 2000 -g 8069 -d /ceph/home/hpcgill1 hpcgill1
+useradd --no-create-home -u 16287 -g 2000 -g 8069 -d /ceph/home/hpcholl1 hpcholl1
+useradd --no-create-home -u 15238 -g 2000 -g 8069 -d /ceph/home/sclt100 sclt100
+useradd --no-create-home -u 15239 -g 2000 -g 8069 -d /ceph/home/mcnab mcnab
+
+## Install NHC
+yum install -y /ceph/home/manch-config/lbnl-nhc-1.4.2-1.el7.noarch.rpm
+cp /ceph/home/manch-config/nhc.conf /etc/nhc/nhc.conf
+
+## Install Slurm and Munge from OpenHPC
+rpm -Uhv https://github.com/openhpc/ohpc/releases/download/v1.3.GA/ohpc-release-1.3-1.el7.x86_64.rpm
+yum -y install slurm-ohpc slurm-slurmd-ohpc slurm-contribs-ohpc slurm-example-configs-ohpc slurm-pam_slurm-ohpc slurm-perlapi-ohpc munge-ohpc
+cp /ceph/home/manch-config/slurm/slurm.conf /etc/slurm/slurm.conf
+cp /ceph/home/manch-config/munge/munge.key  /etc/munge/munge.key
+systemctl enable munge
+systemctl enable slurmd
+systemctl start munge
+systemctl start slurmd
+
 # Example commands for the script to run
 
 # Add a global ssh key to allow access from the headnode
